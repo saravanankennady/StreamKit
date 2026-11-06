@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Elnova StreamKit recorder</title>
+<style>
+  html, body { margin: 0; background: #000; overflow: hidden; }
+  canvas { display: block; }
+  /* Media elements must be in the page for Chrome to decode them, but nothing needs to see them. */
+  #media { position: absolute; left: 0; top: 0; width: 2px; height: 2px; overflow: hidden; opacity: 0; }
+  #media video, #media audio { width: 2px; height: 2px; }
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+<div id="media"></div>
+<script src="assets/recorder.js"></script>
+</body>
+</html>

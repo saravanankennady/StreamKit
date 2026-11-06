@@ -1,0 +1,240 @@
+@import "tailwindcss";
+@import "@fontsource-variable/ibm-plex-sans/index.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource/ibm-plex-mono/600.css";
+
+/*
+  Elnova StreamKit's look: ink on paper, hairlines instead of cards, and colour only where it means something.
+  Chrome stays neutral so that a status colour or a chart line is the loudest thing on screen. The signal
+  colour marks the current place and nothing else. Chart hues were checked with the dataviz palette validator
+  against these surfaces.
+*/
+:root {
+  color-scheme: light;
+  --page: #f4f3ee;
+  --surface: #fcfcfb;
+  --sunken: #f1f0ea;
+  --raised: #ffffff;
+  --ink: #0b0b0b;
+  --ink-2: #4a4946;
+  --ink-3: #6a6964;
+  --line: #e1e0d9;
+  --line-2: #c3c2b7;
+  --signal: #c8ee2a;
+  --signal-ink: #0b0b0b;
+  --on-ink: #fcfcfb;
+  --focus: #0b0b0b;
+
+  --good: #0ca30c;
+  --good-text: #006300;
+  --good-wash: #e7f4e4;
+  --warn: #fab219;
+  --warn-text: #7a5200;
+  --warn-wash: #fdf3d9;
+  --serious: #ec835a;
+  --serious-text: #a03d13;
+  --serious-wash: #fcebe2;
+  --critical: #d03b3b;
+  --critical-text: #aa2020;
+  --critical-wash: #fbe9e8;
+
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-7: #6250d6;
+  --series-8: #e34948;
+  --chart-grid: #e1e0d9;
+  --chart-axis: #c3c2b7;
+  --chart-text: #6a6964;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0c0c0b;
+  --surface: #151514;
+  --sunken: #101010;
+  --raised: #1f1f1d;
+  --ink: #f0efec;
+  --ink-2: #c3c2b7;
+  --ink-3: #979690;
+  --line: #2a2a28;
+  --line-2: #42423e;
+  --signal: #c8ee2a;
+  --signal-ink: #0b0b0b;
+  --on-ink: #0c0c0b;
+  --focus: #f0efec;
+
+  --good: #0ca30c;
+  --good-text: #4cc94c;
+  --good-wash: #122412;
+  --warn: #fab219;
+  --warn-text: #fab219;
+  --warn-wash: #2a2108;
+  --serious: #ec835a;
+  --serious-text: #f09a78;
+  --serious-wash: #2c170e;
+  --critical: #d03b3b;
+  --critical-text: #f07f7f;
+  --critical-wash: #2d1212;
+
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #008300;
+  --series-7: #9085e9;
+  --series-8: #e66767;
+  --chart-grid: #2a2a28;
+  --chart-axis: #42423e;
+  --chart-text: #979690;
+}
+
+@theme inline {
+  --font-sans: "IBM Plex Sans Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-sunken: var(--sunken);
+  --color-raised: var(--raised);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+  --color-signal: var(--signal);
+  --color-signal-ink: var(--signal-ink);
+  --color-on-ink: var(--on-ink);
+  --color-good: var(--good);
+  --color-good-text: var(--good-text);
+  --color-good-wash: var(--good-wash);
+  --color-warn: var(--warn);
+  --color-warn-text: var(--warn-text);
+  --color-warn-wash: var(--warn-wash);
+  --color-serious: var(--serious);
+  --color-serious-text: var(--serious-text);
+  --color-serious-wash: var(--serious-wash);
+  --color-critical: var(--critical);
+  --color-critical-text: var(--critical-text);
+  --color-critical-wash: var(--critical-wash);
+
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+
+  --text-2xs: 0.6875rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-lg: 1rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.625rem;
+  --text-3xl: 2.125rem;
+}
+
+/* In layers, so that Tailwind utilities can override them. Styles outside a layer would beat every utility. */
+@layer base {
+  * {
+    border-color: var(--line);
+  }
+
+  html {
+    background: var(--page);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    min-height: 100dvh;
+    background: var(--page);
+    font-size: var(--text-base);
+    line-height: 1.45;
+  }
+
+  ::selection {
+    background: var(--signal);
+    color: var(--signal-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  a {
+    color: inherit;
+  }
+}
+
+@layer components {
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mono {
+    font-family: var(--font-mono);
+    font-size: 0.94em;
+    letter-spacing: -0.01em;
+  }
+
+  .link {
+    text-decoration: underline;
+    text-decoration-color: var(--line-2);
+    text-underline-offset: 3px;
+  }
+  .link:hover {
+    text-decoration-color: currentColor;
+  }
+
+  /* Thin, quiet scrollbars. They appear on tables and code that are wider than a phone. */
+  .scroll-quiet {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-2) transparent;
+  }
+
+  @keyframes streamkit-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+  .pulse-dot {
+    animation: streamkit-pulse 2s ease-in-out infinite;
+  }
+  .skeleton {
+    background: var(--sunken);
+    animation: streamkit-pulse 1.6s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pulse-dot, .skeleton { animation: none; }
+    * { scroll-behavior: auto !important; transition: none !important; }
+  }
+
+  /* Long-form documentation. */
+  .prose-streamkit { max-width: 46rem; line-height: 1.6; color: var(--ink-2); font-size: 0.9375rem; }
+  .prose-streamkit h1 { color: var(--ink); font-size: var(--text-2xl); font-weight: 600; letter-spacing: -0.015em; line-height: 1.2; margin: 0 0 0.75rem; }
+  .prose-streamkit h2 { color: var(--ink); font-size: 1.125rem; font-weight: 600; margin: 2.25rem 0 0.625rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
+  .prose-streamkit h3 { color: var(--ink); font-size: 0.9375rem; font-weight: 600; margin: 1.5rem 0 0.375rem; }
+  .prose-streamkit p { margin: 0.625rem 0; }
+  .prose-streamkit ul, .prose-streamkit ol { margin: 0.625rem 0; padding-left: 1.25rem; }
+  .prose-streamkit ul { list-style: square; }
+  .prose-streamkit ol { list-style: decimal; }
+  .prose-streamkit li { margin: 0.25rem 0; }
+  .prose-streamkit li::marker { color: var(--ink-3); }
+  .prose-streamkit a { text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; color: var(--ink); }
+  .prose-streamkit a:hover { text-decoration-color: currentColor; }
+  .prose-streamkit strong { color: var(--ink); font-weight: 600; }
+  .prose-streamkit code { font-family: var(--font-mono); font-size: 0.86em; background: var(--sunken); padding: 0.1em 0.3em; border-radius: 2px; color: var(--ink); overflow-wrap: anywhere; }
+  .prose-streamkit .code-block { margin: 0.75rem 0; }
+  .prose-streamkit pre code { background: none; padding: 0; overflow-wrap: normal; }
+  .prose-streamkit table { width: 100%; border-collapse: collapse; margin: 0.875rem 0; font-size: var(--text-sm); }
+  .prose-streamkit th { text-align: left; font-weight: 600; color: var(--ink); border-bottom: 1px solid var(--line-2); padding: 0.375rem 0.75rem 0.375rem 0; }
+  .prose-streamkit td { border-bottom: 1px solid var(--line); padding: 0.375rem 0.75rem 0.375rem 0; vertical-align: top; }
+}

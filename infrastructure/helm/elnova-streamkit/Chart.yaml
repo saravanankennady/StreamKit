@@ -1,0 +1,6 @@
+apiVersion: v2
+name: elnova-streamkit
+description: Self-hosted real-time audio and video.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

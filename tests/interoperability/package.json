@@ -1,0 +1,14 @@
+{
+  "name": "elnova-streamkit-interop",
+  "private": true,
+  "type": "module",
+  "description": "Interoperability harness: official livekit-client (as a black-box test client) against any server URL.",
+  "scripts": {
+    "bundle": "esbuild oracle/client.ts --bundle --format=esm --outfile=oracle/dist/client.js --log-level=warning"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "livekit-client": "2.23.0",
+    "playwright-core": "^1.50.0"
+  }
+}

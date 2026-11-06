@@ -1,0 +1,16 @@
+{
+  "name": "elnova-streamkit-sip-tests",
+  "private": true,
+  "type": "module",
+  "description": "End-to-end tests of SIP: a real server, database and worker, pjsua as an independent SIP phone, and the official client libraries in real Chrome. Nothing is simulated. Everything is on loopback.",
+  "scripts": {
+    "test": "node --test --test-concurrency=1 --test-reporter=spec api.test.mjs phones.test.mjs calls.test.mjs abuse.test.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "livekit-client": "2.23.0",
+    "livekit-server-sdk": "2.19.2",
+    "pg": "^8.13.0",
+    "playwright-core": "^1.50.0"
+  }
+}

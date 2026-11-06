@@ -1,0 +1,17 @@
+# TypeScript for sdk-js. Run with: cd proto && buf generate --template buf.gen.ts.yaml
+# Kept apart from buf.gen.yaml so the Go build does not need Node, and the browser bundle only carries
+# the wire types a client uses.
+version: v2
+inputs:
+  - directory: .
+    paths:
+      - vendor/livekit/livekit_rtc.proto
+      - vendor/livekit/livekit_models.proto
+      - vendor/livekit/livekit_metrics.proto
+      - vendor/livekit/logger/options.proto
+plugins:
+  - local: ../sdk-js/node_modules/.bin/protoc-gen-es
+    out: ../sdk-js/src/proto
+    opt:
+      - target=ts
+      - import_extension=js

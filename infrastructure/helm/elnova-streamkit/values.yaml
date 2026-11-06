@@ -1,0 +1,33 @@
+image:
+  server: elnova-streamkit/server:0.1.0
+  dashboard: elnova-streamkit/dashboard:0.1.0
+  meeting: elnova-streamkit/meeting:0.1.0
+  pullPolicy: IfNotPresent
+
+# Names an existing Secret holding STREAMKIT_MASTER_KEY, STREAMKIT_DATABASE_URL, STREAMKIT_REDIS_URL and STREAMKIT_METRICS_TOKEN.
+existingSecret: elnova-streamkit
+
+server:
+  # One pod per node, on the host network. Clients must reach each pod's public IP directly with UDP, so this
+  # cannot go through a Service or an Ingress.
+  nodeSelector: {}
+  tolerations: []
+  resources:
+    requests: { cpu: "2", memory: 2Gi }
+    limits: { memory: 8Gi }
+  region: default
+  publicWsUrl: wss://rtc.example.com
+  publicDashboardUrl: https://rtc.example.com
+  udpPort: 7882
+  tcpPort: 7881
+
+dashboard:
+  replicas: 2
+meeting:
+  replicas: 2
+
+ingress:
+  enabled: true
+  className: nginx
+  host: rtc.example.com
+  tlsSecret: elnova-streamkit-tls

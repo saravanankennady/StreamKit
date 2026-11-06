@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "elnova-streamkit-server"
+version = "0.1.0"
+description = "Python server SDK for Elnova StreamKit: access tokens, webhook checks, and clients for rooms, recording and ingest."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "All rights reserved" }
+license-files = ["NOTICE.md", "LICENSE.protocol"]
+dependencies = [
+    "aiohttp>=3.11",
+    "pyjwt>=2.10",
+    # The generated code in elnova_streamkit/proto was made with protobuf 7.35, and needs at least that.
+    "protobuf>=7.35.1,<8",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    # Test-only: a comparison against the official SDK. It is never needed to use this one.
+    "livekit-api>=1.2",
+]
+generate = ["grpcio-tools>=1.70"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["elnova_streamkit"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"

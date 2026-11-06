@@ -1,0 +1,492 @@
+{
+ "uid": "streamkit-overview",
+ "title": "Elnova StreamKit overview",
+ "schemaVersion": 39,
+ "version": 1,
+ "refresh": "15s",
+ "time": {
+  "from": "now-1h",
+  "to": "now"
+ },
+ "panels": [
+  {
+   "id": 1,
+   "title": "Rooms",
+   "type": "stat",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 4,
+    "h": 4
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(streamkit_rooms)",
+     "legendFormat": "Rooms"
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "title": "Participants",
+   "type": "stat",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 4,
+    "y": 0,
+    "w": 4,
+    "h": 4
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(streamkit_participants)",
+     "legendFormat": "Participants"
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "title": "Published tracks",
+   "type": "stat",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 8,
+    "y": 0,
+    "w": 4,
+    "h": 4
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(streamkit_tracks_published)",
+     "legendFormat": "Published tracks"
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "title": "Subscriptions",
+   "type": "stat",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 0,
+    "w": 4,
+    "h": 4
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(streamkit_tracks_subscribed)",
+     "legendFormat": "Subscriptions"
+    }
+   ]
+  },
+  {
+   "id": 5,
+   "title": "Peer connections",
+   "type": "stat",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 16,
+    "y": 0,
+    "w": 4,
+    "h": 4
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(streamkit_peer_connections)",
+     "legendFormat": "Peer connections"
+    }
+   ]
+  },
+  {
+   "id": 6,
+   "title": "Nodes up",
+   "type": "stat",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 20,
+    "y": 0,
+    "w": 4,
+    "h": 4
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(up{job=\"streamkit-server\"})",
+     "legendFormat": "nodes"
+    }
+   ]
+  },
+  {
+   "id": 7,
+   "title": "Bitrate",
+   "type": "timeseries",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 4,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bps"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (direction) (rate(streamkit_rtp_bytes_total[1m])) * 8",
+     "legendFormat": "{{direction}}"
+    }
+   ]
+  },
+  {
+   "id": 8,
+   "title": "Packets per second",
+   "type": "timeseries",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 4,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "pps"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (direction, kind) (rate(streamkit_rtp_packets_total[1m]))",
+     "legendFormat": "{{direction}} {{kind}}"
+    }
+   ]
+  },
+  {
+   "id": 9,
+   "title": "Subscriber round-trip time",
+   "type": "timeseries",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 12,
+    "w": 8,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "histogram_quantile(0.5, sum by (le) (rate(streamkit_subscriber_rtt_seconds_bucket[5m])))",
+     "legendFormat": "p50"
+    },
+    {
+     "refId": "B",
+     "expr": "histogram_quantile(0.95, sum by (le) (rate(streamkit_subscriber_rtt_seconds_bucket[5m])))",
+     "legendFormat": "p95"
+    }
+   ]
+  },
+  {
+   "id": 10,
+   "title": "Subscriber jitter",
+   "type": "timeseries",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 8,
+    "y": 12,
+    "w": 8,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "histogram_quantile(0.5, sum by (le) (rate(streamkit_subscriber_jitter_seconds_bucket[5m])))",
+     "legendFormat": "p50"
+    },
+    {
+     "refId": "B",
+     "expr": "histogram_quantile(0.95, sum by (le) (rate(streamkit_subscriber_jitter_seconds_bucket[5m])))",
+     "legendFormat": "p95"
+    }
+   ]
+  },
+  {
+   "id": 11,
+   "title": "Packet loss",
+   "type": "timeseries",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 16,
+    "y": 12,
+    "w": 8,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "histogram_quantile(0.95, sum by (le) (rate(streamkit_subscriber_loss_ratio_bucket[5m])))",
+     "legendFormat": "p95 receiver reports"
+    },
+    {
+     "refId": "B",
+     "expr": "sum(rate(streamkit_rtp_packets_lost_total[1m])) / sum(rate(streamkit_rtp_packets_total{direction=\"in\"}[1m]))",
+     "legendFormat": "publisher streams"
+    }
+   ]
+  },
+  {
+   "id": 12,
+   "title": "NACK and keyframe requests",
+   "type": "timeseries",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 20,
+    "w": 8,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "ops"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(rate(streamkit_rtcp_nack_total[1m]))",
+     "legendFormat": "NACK"
+    },
+    {
+     "refId": "B",
+     "expr": "sum(rate(streamkit_rtcp_pli_total[1m]))",
+     "legendFormat": "keyframe requests"
+    },
+    {
+     "refId": "C",
+     "expr": "sum(rate(streamkit_rtcp_fir_total[1m]))",
+     "legendFormat": "FIR"
+    }
+   ]
+  },
+  {
+   "id": 13,
+   "title": "Connection attempts",
+   "type": "timeseries",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 8,
+    "y": 20,
+    "w": 8,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "ops"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (outcome) (rate(streamkit_signal_connects_total[5m]))",
+     "legendFormat": "{{outcome}}"
+    }
+   ]
+  },
+  {
+   "id": 14,
+   "title": "Sessions ended, by reason",
+   "type": "timeseries",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 16,
+    "y": 20,
+    "w": 8,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "ops"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (reason) (rate(streamkit_sessions_ended_total[5m]))",
+     "legendFormat": "{{reason}}"
+    }
+   ]
+  },
+  {
+   "id": 15,
+   "title": "Process CPU",
+   "type": "timeseries",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 28,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "rate(process_cpu_seconds_total{job=\"streamkit-server\"}[1m])",
+     "legendFormat": "{{instance}}"
+    }
+   ]
+  },
+  {
+   "id": 16,
+   "title": "Process memory",
+   "type": "timeseries",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 28,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bytes"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "process_resident_memory_bytes{job=\"streamkit-server\"}",
+     "legendFormat": "{{instance}}"
+    }
+   ]
+  }
+ ],
+ "templating": {
+  "list": []
+ },
+ "tags": [
+  "elnova-streamkit"
+ ]
+}

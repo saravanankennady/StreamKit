@@ -1,0 +1,17 @@
+{
+  "name": "elnova-streamkit-media-tests",
+  "private": true,
+  "type": "module",
+  "description": "End-to-end tests of recording and ingest: a real server, database, workers, ffmpeg and Chrome. Nothing is simulated.",
+  "scripts": {
+    "test": "node --test --test-concurrency=1 --test-reporter=spec egress.test.mjs ingress.test.mjs failure.test.mjs s3.test.mjs",
+    "test:compose": "node --test --test-timeout=1500000 --test-reporter=spec compose.test.mjs",
+    "measure": "node --test --test-concurrency=1 --test-reporter=spec measure.test.mjs",
+    "startup": "node --test --test-concurrency=1 --test-reporter=spec startup.test.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "pg": "^8.13.0",
+    "playwright-core": "^1.50.0"
+  }
+}

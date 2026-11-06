@@ -1,0 +1,71 @@
+@import "tailwindcss";
+@import "@fontsource-variable/ibm-plex-sans/index.css";
+
+/*
+  The same ink and signal colour as the dashboard, on a dark ground: faces and shared screens should be the
+  brightest thing in a meeting. Colour marks who is speaking and what needs attention.
+*/
+@theme {
+  --color-page: #0b0b0b;
+  --color-surface: #171715;
+  --color-raised: #24241f;
+  --color-ink: #f4f3ee;
+  --color-ink-2: #c3c2b7;
+  --color-ink-3: #94938a;
+  --color-line: #2f2f2a;
+  --color-line-2: #4a4946;
+  --color-signal: #c8ee2a;
+  --color-signal-ink: #0b0b0b;
+  --color-critical: #e5484d;
+  --color-critical-text: #ff9592;
+  --color-warn-text: #f5c451;
+  --font-sans: "IBM Plex Sans Variable", ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-page);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-signal);
+  outline-offset: 2px;
+}
+
+/* Who is speaking. An inset ring does not change the layout as people start and stop. */
+[data-streamkit-participant-tile][data-speaking="true"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 3px var(--color-signal);
+  pointer-events: none;
+}
+
+/* Reactions rise a little and fade. Without motion, they simply appear and go. */
+@media (prefers-reduced-motion: no-preference) {
+  .reaction-float {
+    animation: reaction-float 4s ease-out both;
+  }
+}
+
+@keyframes reaction-float {
+  0% {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+  10%,
+  80% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-0.75rem);
+  }
+}

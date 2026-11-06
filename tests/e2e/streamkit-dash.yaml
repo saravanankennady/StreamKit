@@ -1,0 +1,25 @@
+# Backend configuration for the dashboard's end-to-end tests. Development values only: never reuse this
+# master key. Run from the repository root:
+#   bin/streamkit-server-dash --dev --config tests/e2e/streamkit-dash.yaml
+port: 17880
+region: local
+rtc:
+  udp_port: 17882
+  tcp_port: 17881
+control_plane:
+  database_url: postgres://streamkit:streamkit-dev-only@127.0.0.1:5433/streamkit_dash?sslmode=disable
+  public_dashboard_url: http://localhost:3100
+  public_ws_url: ws://localhost:17880
+  allow_private_webhooks: true
+  mail:
+    dir: tests/e2e/.tmp/mail
+media:
+  ws_url: ws://127.0.0.1:17880
+  allow_private_addresses: true
+  storage:
+    kind: local
+    dir: tests/e2e/.tmp/recordings
+  egress:
+    work_dir: tests/e2e/.tmp/work
+  ingress:
+    rtmp_addr: 127.0.0.1:18935

@@ -1,0 +1,66 @@
+# Runs the production stack on the test ports, so tests/media/compose.test.mjs can reach it from this machine. The server
+# is published directly as well as through nginx, so tests can look at both. Everything else, including the images and how the
+# services are wired together, is what production.yml says, apart from the three stand-ins at the end: nginx refuses to
+# start unless it can resolve them, and nothing these tests do goes to them.
+x-config: &config |
+  region: test
+  rtc:
+    udp_port: 57882
+    tcp_port: 57881
+  control_plane:
+    public_ws_url: ws://127.0.0.1:57880
+    public_dashboard_url: http://127.0.0.1:57880
+    secure_cookies: false
+    trust_proxy_headers: true
+  media:
+    ws_url: ws://server:7880
+    public_rtmp_url: rtmp://127.0.0.1:57935/live
+    public_whip_url: http://127.0.0.1:57880/whip/v1
+    storage:
+      kind: local
+      dir: /var/lib/streamkit/recordings
+    egress:
+      work_dir: /var/lib/streamkit/work
+    ingress:
+      rtmp_addr: ":1935"
+
+services:
+  server:
+    ports: !override
+      - "127.0.0.1:57880:7880/tcp"
+      - "57881:57881/tcp"
+      - "57882:57882/udp"
+    mem_limit: 1g
+  egress:
+    environment:
+      STREAMKIT_CONFIG_YAML: *config
+    # Containers run under dockerd, outside any cap put on the test run, so each has its own. These tests run one recording at
+    # a time, which measures about 800 MB with Chrome's fake cameras.
+    mem_limit: 2g
+  ingress:
+    environment:
+      STREAMKIT_CONFIG_YAML: *config
+    ports: !override
+      - "127.0.0.1:57935:1935/tcp"
+    mem_limit: 1g
+  postgres:
+    mem_limit: 512m
+  redis:
+    mem_limit: 256m
+  nginx:
+    ports: !override
+      - "127.0.0.1:57443:443/tcp"
+    mem_limit: 256m
+  dashboard: &stand-in
+    image: alpine:3.22
+    build: !reset null
+    command: ["sleep", "1000000"]
+    environment: !reset {}
+    volumes: !reset []
+    mem_limit: 32m
+  meeting: *stand-in
+  grafana: *stand-in
+
+configs:
+  server:
+    content: *config

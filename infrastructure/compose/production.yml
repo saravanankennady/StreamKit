@@ -1,0 +1,307 @@
+# A single-host production stack. Copy infrastructure/compose/.env.example to .env, fill it in, then:
+#   docker compose -f infrastructure/compose/production.yml --env-file .env up -d
+# See docs/deployment/self-hosting.md first, in particular the firewall and DNS sections.
+name: elnova-streamkit
+
+# The configuration, in one place. It holds addresses, ports and paths, and no secrets: those are in the services' environment
+# below, by name, and come from .env. The server gets this as a file. The workers have a read-only root, which Compose cannot copy
+# an inline config into, so they get the same text in STREAMKIT_CONFIG_YAML, and there is no file for anything to find.
+x-config: &config |
+  region: ${STREAMKIT_REGION:-default}
+  rtc:
+    udp_port: 7882
+    tcp_port: 7881
+    ice_servers:
+      - urls: ["stun:${STREAMKIT_DOMAIN}:3478"]
+    turn:
+      urls: ["turn:${STREAMKIT_DOMAIN}:3478", "turns:${STREAMKIT_DOMAIN}:5349"]
+  control_plane:
+    public_ws_url: wss://${STREAMKIT_DOMAIN}
+    public_dashboard_url: https://${STREAMKIT_DOMAIN}
+    secure_cookies: true
+    trust_proxy_headers: true
+    mail:
+      from: ${STREAMKIT_MAIL_FROM:-noreply@localhost}
+      smtp_host: ${STREAMKIT_SMTP_HOST:-}
+      smtp_port: ${STREAMKIT_SMTP_PORT:-587}
+      username: ${STREAMKIT_SMTP_USERNAME:-}
+  media:
+    # Workers join rooms like any other client. Their media reaches the server at STREAMKIT_PUBLIC_IP, so that address
+    # has to be reachable from inside a container on this host.
+    ws_url: ws://server:7880
+    public_rtmp_url: rtmp://${STREAMKIT_DOMAIN}:1935/live
+    public_whip_url: https://${STREAMKIT_DOMAIN}/whip/v1
+    storage:
+      kind: local
+      dir: /var/lib/streamkit/recordings
+    egress:
+      work_dir: /var/lib/streamkit/work
+    ingress:
+      rtmp_addr: ":1935"
+    sip:
+      udp_addr: ":5060"
+      tcp_addr: ":5060"
+      public_host: ${STREAMKIT_PUBLIC_IP}
+      media_ip: ${STREAMKIT_PUBLIC_IP}
+      rtp_port_min: 10000
+      rtp_port_max: 10199
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: streamkit
+      POSTGRES_PASSWORD: ${STREAMKIT_DB_PASSWORD:?set STREAMKIT_DB_PASSWORD}
+      POSTGRES_DB: streamkit
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U streamkit -d streamkit"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [internal, media]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${STREAMKIT_REDIS_PASSWORD:?set STREAMKIT_REDIS_PASSWORD}"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    environment:
+      REDIS_PASSWORD: ${STREAMKIT_REDIS_PASSWORD}
+    networks: [internal]
+
+  server:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/server.Dockerfile
+    restart: unless-stopped
+    command: ["--config", "/etc/streamkit/server.yaml"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    environment:
+      STREAMKIT_DATABASE_URL: postgres://streamkit:${STREAMKIT_DB_PASSWORD}@postgres:5432/streamkit?sslmode=disable
+      STREAMKIT_REDIS_URL: redis://:${STREAMKIT_REDIS_PASSWORD}@redis:6379/0
+      STREAMKIT_NODE_URL: http://server:7880
+      STREAMKIT_MASTER_KEY: ${STREAMKIT_MASTER_KEY:?set STREAMKIT_MASTER_KEY, try openssl rand -hex 32}
+      # The server gives the workers' database role this password when it starts.
+      STREAMKIT_WORKER_DB_PASSWORD: ${STREAMKIT_WORKER_DB_PASSWORD:?set STREAMKIT_WORKER_DB_PASSWORD, try openssl rand -hex 32}
+      STREAMKIT_NODE_IP: ${STREAMKIT_PUBLIC_IP:?set STREAMKIT_PUBLIC_IP}
+      STREAMKIT_METRICS_TOKEN: ${STREAMKIT_METRICS_TOKEN:?set STREAMKIT_METRICS_TOKEN}
+      STREAMKIT_TURN_SECRET: ${STREAMKIT_TURN_SECRET:?set STREAMKIT_TURN_SECRET}
+      STREAMKIT_ALLOW_REGISTRATION: ${STREAMKIT_ALLOW_REGISTRATION:-false}
+    configs:
+      - source: server
+        target: /etc/streamkit/server.yaml
+    volumes:
+      - recordings-data:/var/lib/streamkit/recordings
+    ports:
+      # Media must reach this container directly. Do not put these behind the reverse proxy.
+      - "7881:7881/tcp"
+      - "7882:7882/udp"
+    networks: [internal, media]
+
+  # Records rooms with headless Chrome. Scale it with: docker compose up -d --scale egress=2
+  egress:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/egress.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      server: { condition: service_started }
+    environment:
+      STREAMKIT_DATABASE_URL: postgres://streamkit_worker:${STREAMKIT_WORKER_DB_PASSWORD}@postgres:5432/streamkit?sslmode=disable
+      STREAMKIT_MASTER_KEY: ${STREAMKIT_MASTER_KEY}
+      STREAMKIT_CONFIG_YAML: *config
+    volumes:
+      - recordings-data:/var/lib/streamkit/recordings
+      # Kept across restarts, because this is what a partial recording is recovered from.
+      - egress-work:/var/lib/streamkit/work
+    # Chrome keeps its shared memory here, and Docker's default of 64 MB is not enough for it.
+    shm_size: 1gb
+    # A clean stop finishes the recordings in progress, which takes longer than Docker's default ten seconds.
+    stop_grace_period: 2m
+    # Docker's default seccomp profile, plus what Chrome's sandbox needs to set itself up. That sandbox is what keeps a
+    # renderer away from everything else here, and anyone in a call can send a renderer whatever video they like.
+    security_opt: ["no-new-privileges:true", "seccomp=../docker/chrome-seccomp.json"]
+    cap_drop: [ALL]
+    # Nothing in it can be changed, by Chrome or ffmpeg or anything they are tricked into running. They write only to /tmp,
+    # the shared memory Chrome uses, and this service's volumes.
+    read_only: true
+    tmpfs: ["/tmp"]
+    networks: [media]
+
+  # Accepts RTMP and pulls from URLs.
+  ingress:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/ingress.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      server: { condition: service_started }
+    environment:
+      STREAMKIT_DATABASE_URL: postgres://streamkit_worker:${STREAMKIT_WORKER_DB_PASSWORD}@postgres:5432/streamkit?sslmode=disable
+      STREAMKIT_MASTER_KEY: ${STREAMKIT_MASTER_KEY}
+      STREAMKIT_CONFIG_YAML: *config
+    ports:
+      - "1935:1935/tcp"
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: ["/tmp"]
+    networks: [media]
+
+  # Connects phone calls to rooms. See docs/deployment/sip.md before opening this to the internet: the port is scanned from the
+  # moment it exists. It is off unless asked for: docker compose --profile sip up -d
+  sip:
+    profiles: [sip]
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/sip.Dockerfile
+    restart: unless-stopped
+    command: ["--config", "/etc/streamkit/server.yaml"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      server: { condition: service_started }
+    environment:
+      STREAMKIT_DATABASE_URL: postgres://streamkit:${STREAMKIT_DB_PASSWORD}@postgres:5432/streamkit?sslmode=disable
+      STREAMKIT_MASTER_KEY: ${STREAMKIT_MASTER_KEY}
+    configs:
+      - source: server
+        target: /etc/streamkit/server.yaml
+    ports:
+      - "5060:5060/udp"
+      - "5060:5060/tcp"
+      # A call takes two ports. Keep this the same as rtp_port_min and rtp_port_max below. Publishing a wide range through
+      # Docker is slow, so for more calls than this, run the worker on the host's own network.
+      - "10000-10199:10000-10199/udp"
+    # A clean stop gives calls time to end by themselves.
+    stop_grace_period: 90s
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    networks: [internal]
+
+  dashboard:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/next-app.Dockerfile
+      args: { APP: dashboard }
+    restart: unless-stopped
+    environment:
+      STREAMKIT_API_URL: http://server:7880
+    networks: [internal]
+
+  meeting:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/next-app.Dockerfile
+      args: { APP: meeting-app }
+    restart: unless-stopped
+    environment:
+      STREAMKIT_API_URL: http://server:7880
+    networks: [internal]
+
+  nginx:
+    image: nginx:1.29-alpine
+    restart: unless-stopped
+    depends_on: [server, dashboard, meeting]
+    environment:
+      STREAMKIT_DOMAIN: ${STREAMKIT_DOMAIN:?set STREAMKIT_DOMAIN}
+    volumes:
+      # Under this name it replaces the server the image comes with, which would log whole addresses for what reaches it.
+      - ../nginx/streamkit.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ${STREAMKIT_TLS_DIR:?set STREAMKIT_TLS_DIR, the directory with fullchain.pem and privkey.pem}:/etc/nginx/tls:ro
+    ports:
+      - "80:80/tcp"
+      - "443:443/tcp"
+    networks: [internal]
+
+  coturn:
+    image: coturn/coturn:4.7-alpine
+    restart: unless-stopped
+    # TURN relays media for clients whose networks block direct UDP, so it needs the host's network: relays use a
+    # wide port range, and publishing one through Docker is slow.
+    network_mode: host
+    command:
+      - --no-cli
+      - --no-tlsv1
+      - --no-tlsv1_1
+      - --fingerprint
+      - --lt-cred-mech
+      - --use-auth-secret
+      - --static-auth-secret=${STREAMKIT_TURN_SECRET:?set STREAMKIT_TURN_SECRET}
+      - --realm=${STREAMKIT_DOMAIN}
+      - --external-ip=${STREAMKIT_PUBLIC_IP}
+      - --listening-port=3478
+      - --tls-listening-port=5349
+      - --min-port=49160
+      - --max-port=49800
+      - --no-multicast-peers
+      - --denied-peer-ip=10.0.0.0-10.255.255.255
+      - --denied-peer-ip=172.16.0.0-172.31.255.255
+      - --denied-peer-ip=192.168.0.0-192.168.255.255
+      - --denied-peer-ip=169.254.0.0-169.254.255.255
+      - --cert=/etc/coturn/tls/fullchain.pem
+      - --pkey=/etc/coturn/tls/privkey.pem
+    volumes:
+      - ${STREAMKIT_TLS_DIR}:/etc/coturn/tls:ro
+
+  prometheus:
+    image: prom/prometheus:v3.4.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=30d
+    environment:
+      STREAMKIT_METRICS_TOKEN: ${STREAMKIT_METRICS_TOKEN}
+    volumes:
+      - ../../monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../../monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    configs:
+      - source: metrics_token
+        target: /etc/prometheus/metrics_token
+    networks: [internal]
+
+  grafana:
+    image: grafana/grafana:12.0.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${STREAMKIT_GRAFANA_PASSWORD:?set STREAMKIT_GRAFANA_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: https://${STREAMKIT_DOMAIN}/grafana/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+    volumes:
+      - ../../monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../../monitoring/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    networks: [internal]
+
+configs:
+  server:
+    content: *config
+  metrics_token:
+    content: ${STREAMKIT_METRICS_TOKEN}
+
+volumes:
+  postgres-data:
+  redis-data:
+  recordings-data:
+  egress-work:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  internal:
+  # Workers talk to the server and the database, and have no business with anything else here.
+  media:

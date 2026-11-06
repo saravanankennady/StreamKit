@@ -1,0 +1,75 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-server
+data:
+  server.yaml: |
+    region: {{ .Values.server.region }}
+    rtc:
+      udp_port: {{ .Values.server.udpPort }}
+      tcp_port: {{ .Values.server.tcpPort }}
+    control_plane:
+      public_ws_url: {{ .Values.server.publicWsUrl }}
+      public_dashboard_url: {{ .Values.server.publicDashboardUrl }}
+      secure_cookies: true
+      trust_proxy_headers: true
+---
+# One server per node, on the host network: each advertises its node's own address in ICE candidates, so clients
+# send media straight to it. Signalling reaches any pod through the Service, and pods proxy to the room's host.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ .Release.Name }}-server
+spec:
+  selector:
+    matchLabels: { app: {{ .Release.Name }}-server }
+  template:
+    metadata:
+      labels: { app: {{ .Release.Name }}-server }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "7880"
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      terminationGracePeriodSeconds: 60
+      nodeSelector: {{ toYaml .Values.server.nodeSelector | nindent 8 }}
+      tolerations: {{ toYaml .Values.server.tolerations | nindent 8 }}
+      containers:
+        - name: server
+          image: {{ .Values.image.server }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["--config", "/etc/streamkit/server.yaml"]
+          env:
+            - name: POD_IP
+              valueFrom: { fieldRef: { fieldPath: status.podIP } }
+            - name: STREAMKIT_NODE_URL
+              value: http://$(POD_IP):7880
+          envFrom:
+            - secretRef: { name: {{ .Values.existingSecret }} }
+          ports:
+            - { name: http, containerPort: 7880, protocol: TCP }
+            - { name: rtc-tcp, containerPort: {{ .Values.server.tcpPort }}, protocol: TCP }
+            - { name: rtc-udp, containerPort: {{ .Values.server.udpPort }}, protocol: UDP }
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /livez, port: http }
+            periodSeconds: 10
+            failureThreshold: 6
+          resources: {{ toYaml .Values.server.resources | nindent 12 }}
+          volumeMounts:
+            - { name: config, mountPath: /etc/streamkit, readOnly: true }
+      volumes:
+        - name: config
+          configMap: { name: {{ .Release.Name }}-server }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-server
+spec:
+  selector: { app: {{ .Release.Name }}-server }
+  ports:
+    - { name: http, port: 7880, targetPort: http }

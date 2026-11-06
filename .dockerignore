@@ -1,0 +1,6 @@
+.git
+bin
+**/node_modules
+**/.next
+**/dist
+tests/interoperability/oracle/out

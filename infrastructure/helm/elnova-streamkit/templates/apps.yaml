@@ -1,0 +1,79 @@
+{{- range $name, $image := dict "dashboard" .Values.image.dashboard "meeting" .Values.image.meeting }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $.Release.Name }}-{{ $name }}
+spec:
+  replicas: {{ (index $.Values $name).replicas }}
+  selector:
+    matchLabels: { app: {{ $.Release.Name }}-{{ $name }} }
+  template:
+    metadata:
+      labels: { app: {{ $.Release.Name }}-{{ $name }} }
+    spec:
+      containers:
+        - name: app
+          image: {{ $image }}
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          env:
+            - name: STREAMKIT_API_URL
+              value: http://{{ $.Release.Name }}-server:7880
+          ports:
+            - { name: http, containerPort: 3000 }
+          readinessProbe:
+            httpGet: { path: /, port: http }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $.Release.Name }}-{{ $name }}
+spec:
+  selector: { app: {{ $.Release.Name }}-{{ $name }} }
+  ports:
+    - { name: http, port: 3000, targetPort: http }
+---
+{{- end }}
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}
+  annotations:
+    # Signalling sockets stay open for the whole call.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  tls:
+    - hosts: [{{ .Values.ingress.host }}]
+      secretName: {{ .Values.ingress.tlsSecret }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - { path: /twirp, pathType: Prefix, backend: { service: { name: {{ .Release.Name }}-server, port: { name: http } } } }
+          - { path: /api, pathType: Prefix, backend: { service: { name: {{ .Release.Name }}-server, port: { name: http } } } }
+          - { path: /meet, pathType: Prefix, backend: { service: { name: {{ .Release.Name }}-meeting, port: { name: http } } } }
+          - { path: /, pathType: Prefix, backend: { service: { name: {{ .Release.Name }}-dashboard, port: { name: http } } } }
+---
+# A browser can only put an access token in the address of a WebSocket, and the controller's log format is set for the whole
+# cluster, so this path gets an Ingress of its own with no access log.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-signalling
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/enable-access-log: "false"
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  tls:
+    - hosts: [{{ .Values.ingress.host }}]
+      secretName: {{ .Values.ingress.tlsSecret }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - { path: /rtc, pathType: Prefix, backend: { service: { name: {{ .Release.Name }}-server, port: { name: http } } } }
+{{- end }}

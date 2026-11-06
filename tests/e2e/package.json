@@ -1,0 +1,14 @@
+{
+  "name": "elnova-streamkit-dashboard-e2e",
+  "private": true,
+  "type": "module",
+  "description": "End-to-end tests of the dashboard, in real Chrome, against the real backend and database.",
+  "scripts": {
+    "test": "node --test --test-concurrency=1 --test-timeout=600000 --test-reporter=spec dashboard.test.mjs meeting.test.mjs",
+    "screenshots": "node screenshots.mjs"
+  },
+  "devDependencies": {
+    "pg": "^8.13.0",
+    "playwright-core": "^1.50.0"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "elnova-streamkit-network-tests",
+  "private": true,
+  "type": "module",
+  "description": "The server under real packet impairment, on our server and the reference. Uses tc netem in containers on one machine, so results are emulated, not a real network. Needs npm ci in sdk-js, sdk-react and tests/interoperability, and a static server binary.",
+  "scripts": {
+    "test": "node run-all.mjs",
+    "report": "node report.mjs"
+  }
+}

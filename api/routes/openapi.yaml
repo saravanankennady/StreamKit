@@ -1,0 +1,520 @@
+openapi: 3.1.0
+info:
+  title: Elnova StreamKit API
+  version: 0.1.0
+  description: |
+    Management API for Elnova StreamKit. Browsers sign in with a session cookie and name their project in the
+    X-Project-ID header. Programs send an access token as `Authorization: Bearer <token>`; its API key
+    determines the project, and its grants determine what it can do.
+
+    Errors look like `{"error": {"code": "...", "message": "...", "fields": {...}}}`. List responses look like
+    `{"items": [...], "next_cursor": "..."}`; pass `cursor` to get the next page.
+servers:
+  - url: /api/v1
+tags:
+  - name: auth
+  - name: projects
+  - name: keys
+  - name: tokens
+  - name: join links
+  - name: meetings
+  - name: rooms
+  - name: participants
+  - name: tracks
+  - name: webhooks
+  - name: analytics
+  - name: servers
+  - name: logs
+  - name: egress
+  - name: ingress
+  - name: sip
+components:
+  securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: streamkit_session
+    token:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Project:
+      name: X-Project-ID
+      in: header
+      description: Required with a session cookie.
+      schema: { type: string, format: uuid }
+  responses:
+    Error:
+      description: Failure
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                required: [code, message]
+                properties:
+                  code: { type: string }
+                  message: { type: string }
+                  fields: { type: object, additionalProperties: { type: string } }
+  schemas:
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string }
+        name: { type: string }
+        is_platform_admin: { type: boolean }
+        email_verified_at: { type: [string, "null"], format: date-time }
+        created_at: { type: string, format: date-time }
+    ProjectSettings:
+      type: object
+      properties:
+        empty_timeout: { type: integer, description: Seconds a never-joined room stays open. }
+        departure_timeout: { type: integer, description: Seconds a room stays open after the last person leaves. }
+        max_participants: { type: integer }
+        auto_create_rooms: { type: boolean }
+        allowed_origins: { type: array, items: { type: string } }
+        token_ttl_seconds: { type: integer }
+        ice_servers:
+          type: array
+          items:
+            type: object
+            properties:
+              urls: { type: array, items: { type: string } }
+              username: { type: string }
+              credential: { type: string }
+    Project:
+      type: object
+      properties:
+        id: { type: string }
+        org_id: { type: string }
+        name: { type: string }
+        url: { type: string, description: The address clients connect to. }
+        region: { type: string }
+        environment: { type: string, enum: [development, staging, production] }
+        status: { type: string, enum: [active, suspended] }
+        settings: { $ref: "#/components/schemas/ProjectSettings" }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    APIKey:
+      type: object
+      properties:
+        id: { type: string }
+        api_key: { type: string }
+        name: { type: string }
+        secret: { type: string, description: Returned only when the key is created or rotated. }
+        created_at: { type: string, format: date-time }
+        expires_at: { type: [string, "null"], format: date-time }
+        revoked_at: { type: [string, "null"], format: date-time }
+    Room:
+      type: object
+      properties:
+        sid: { type: string }
+        name: { type: string }
+        state: { type: string, enum: [creating, active, empty, closing, closed, failed] }
+        metadata: { type: string }
+        participants: { type: integer }
+        max_participants: { type: integer }
+        publishers: { type: integer }
+        audio_streams: { type: integer }
+        video_streams: { type: integer }
+        created_at: { type: integer, description: Unix seconds. }
+        duration_seconds: { type: integer }
+        bitrate_in: { type: integer }
+        bitrate_out: { type: integer }
+    Webhook:
+      type: object
+      properties:
+        id: { type: string }
+        url: { type: string }
+        api_key_id: { type: string, description: Deliveries are signed with this key. }
+        api_key: { type: string }
+        events: { type: array, items: { type: string }, description: Empty means all events. }
+        enabled: { type: boolean }
+paths:
+  /sip/trunks/inbound:
+    get:
+      tags: [sip]
+      summary: List inbound trunks. Credentials are never returned; has_credentials says whether a trunk has any.
+      responses: { "200": { description: "{ items }" } }
+    post:
+      tags: [sip]
+      summary: Create an inbound trunk from a SIPInboundTrunkInfo. It needs allowed_addresses, or auth_username and auth_password.
+      responses: { "201": { description: The trunk, without its credentials } }
+  /sip/trunks/inbound/{id}:
+    get: { tags: [sip], summary: One inbound trunk, responses: { "200": { description: The trunk } } }
+    patch: { tags: [sip], summary: Change a trunk with a SIPInboundTrunkUpdate, responses: { "200": { description: The trunk } } }
+    delete: { tags: [sip], summary: Delete a trunk, responses: { "204": { description: Deleted } } }
+  /sip/trunks/outbound:
+    get: { tags: [sip], summary: List outbound trunks, responses: { "200": { description: "{ items }" } } }
+    post: { tags: [sip], summary: Create an outbound trunk from a SIPOutboundTrunkInfo, responses: { "201": { description: The trunk, without its credentials } } }
+  /sip/trunks/outbound/{id}:
+    get: { tags: [sip], summary: One outbound trunk, responses: { "200": { description: The trunk } } }
+    patch: { tags: [sip], summary: Change a trunk with a SIPOutboundTrunkUpdate, responses: { "200": { description: The trunk } } }
+    delete: { tags: [sip], summary: Delete a trunk, responses: { "204": { description: Deleted } } }
+  /sip/dispatch-rules:
+    get: { tags: [sip], summary: List dispatch rules. A PIN shows as ****, responses: { "200": { description: "{ items }" } } }
+    post: { tags: [sip], summary: Create a dispatch rule from a SIPDispatchRuleInfo, responses: { "201": { description: The rule } } }
+  /sip/dispatch-rules/{id}:
+    patch: { tags: [sip], summary: Change a rule with a SIPDispatchRuleUpdate, responses: { "200": { description: The rule } } }
+    delete: { tags: [sip], summary: Delete a rule, responses: { "204": { description: Deleted } } }
+  /sip/calls:
+    get: { tags: [sip], summary: "Calls, newest first: { items, next_cursor }", responses: { "200": { description: Calls } } }
+    post: { tags: [sip], summary: Place a call from a CreateSIPParticipantRequest, responses: { "201": { description: The call } } }
+  /sip/calls/{id}:
+    get: { tags: [sip], summary: One call, responses: { "200": { description: The call } } }
+  /sip/calls/{id}/hangup:
+    post: { tags: [sip], summary: End a call, responses: { "200": { description: The call }, "409": { description: It had already ended } } }
+  /auth/register:
+    post:
+      tags: [auth]
+      summary: Create an account and organization, and sign in. Once there is one account, this needs allow_registration on the server.
+      responses: { "201": { description: Created }, "403": { description: "Registration is closed", content: {} }, "409": { $ref: "#/components/responses/Error" }, "422": { $ref: "#/components/responses/Error" } }
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Sign in.
+      responses: { "200": { description: Signed in }, "401": { $ref: "#/components/responses/Error" } }
+  /auth/logout:
+    post: { tags: [auth], summary: Sign out., security: [{ session: [] }], responses: { "204": { description: Done } } }
+  /auth/forgot-password:
+    post: { tags: [auth], summary: Email a reset link., responses: { "202": { description: Accepted whether or not the account exists. } } }
+  /auth/reset-password:
+    post: { tags: [auth], summary: Set a new password and end all sessions., responses: { "200": { description: Changed }, "400": { $ref: "#/components/responses/Error" } } }
+  /auth/verify-email:
+    post: { tags: [auth], summary: Confirm an email address., responses: { "200": { description: Confirmed }, "400": { $ref: "#/components/responses/Error" } } }
+  /auth/resend-verification:
+    post: { tags: [auth], summary: Send the confirmation email again., security: [{ session: [] }], responses: { "202": { description: Sent } } }
+  /auth/sessions:
+    get: { tags: [auth], summary: List your active sessions., security: [{ session: [] }], responses: { "200": { description: Sessions } } }
+  /auth/sessions/{id}:
+    delete:
+      tags: [auth]
+      summary: End a session.
+      security: [{ session: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses: { "204": { description: Ended } }
+  /me:
+    get: { tags: [auth], summary: Your account, organizations and projects., security: [{ session: [] }], responses: { "200": { description: Account } } }
+  /projects:
+    get: { tags: [projects], summary: List your projects., security: [{ session: [] }], responses: { "200": { description: Projects } } }
+    post: { tags: [projects], summary: Create a project., security: [{ session: [] }], responses: { "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Project" } } } } } }
+  /projects/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+    get: { tags: [projects], summary: Get a project., security: [{ session: [] }], responses: { "200": { description: Project } } }
+    patch: { tags: [projects], summary: Change a project., security: [{ session: [] }], responses: { "200": { description: Project } } }
+    delete: { tags: [projects], summary: Delete a project, revoke its keys and close its rooms., security: [{ session: [] }], responses: { "204": { description: Deleted } } }
+  /keys:
+    parameters: [{ $ref: "#/components/parameters/Project" }]
+    get: { tags: [keys], summary: List API keys. Secrets are never included., security: [{ session: [] }], responses: { "200": { description: Keys } } }
+    post: { tags: [keys], summary: Create a key. The response is the only time the secret is shown., security: [{ session: [] }], responses: { "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/APIKey" } } } } } }
+  /keys/{id}/rotate:
+    post:
+      tags: [keys]
+      summary: Issue a replacement. The old key keeps working for overlap_seconds (default one day).
+      security: [{ session: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/Project" }]
+      responses: { "201": { description: New key } }
+  /keys/{id}:
+    delete:
+      tags: [keys]
+      summary: Revoke a key.
+      security: [{ session: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/Project" }]
+      responses: { "204": { description: Revoked } }
+  /tokens:
+    post:
+      tags: [tokens]
+      summary: Mint an access token. Session authentication only.
+      security: [{ session: [] }]
+      parameters: [{ $ref: "#/components/parameters/Project" }]
+      responses: { "201": { description: Token } }
+  /provider-credentials:
+    parameters: [{ $ref: "#/components/parameters/Project" }]
+    get:
+      tags: [agents]
+      summary: List stored provider API keys. The keys themselves are never returned. Project admins only.
+      security: [{ session: [] }]
+      responses: { "200": { description: Provider, name and when last used } }
+    put:
+      tags: [agents]
+      summary: Store a provider API key, sealed, replacing any with the same provider and name. Project admins only.
+      security: [{ session: [] }]
+      responses: { "200": { description: Stored. The response does not contain the key }, "422": { description: Invalid } }
+  /provider-credentials/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/Project" }]
+    delete:
+      tags: [agents]
+      summary: Delete a stored provider API key. Project admins only.
+      security: [{ session: [] }]
+      responses: { "204": { description: Deleted } }
+  /agent-credentials/resolve:
+    post:
+      tags: [agents]
+      summary: Read a provider API key, for a worker. Needs an access token with only the agent grant, sent from outside a browser. Sessions are refused.
+      security: [{ token: [] }]
+      responses: { "200": { description: The key }, "403": { description: Not a worker }, "404": { description: No such key } }
+  /agent-sessions:
+    parameters: [{ $ref: "#/components/parameters/Project" }]
+    get:
+      tags: [agents]
+      summary: List agent sessions, newest first, with their latency and cost where known.
+      parameters: [{ name: room, in: query, schema: { type: string } }, { name: limit, in: query, schema: { type: integer } }]
+      responses: { "200": { description: Session summaries } }
+    post:
+      tags: [agents]
+      summary: Report a session, from a worker. Needs an access token with only the agent grant.
+      security: [{ token: [] }]
+      responses: { "200": { description: Stored }, "403": { description: Not a worker }, "422": { description: Invalid } }
+  /agent-sessions/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/Project" }]
+    get:
+      tags: [agents]
+      summary: One agent session with its turns, each with its latency breakdown and usage.
+      responses: { "200": { description: The session } }
+  /join-links:
+    parameters: [{ $ref: "#/components/parameters/Project" }]
+    get:
+      tags: [join links]
+      summary: List share links that still work, optionally for one room. Session authentication only.
+      security: [{ session: [] }]
+      parameters: [{ name: room, in: query, schema: { type: string } }]
+      responses: { "200": { description: Links } }
+    post:
+      tags: [join links]
+      summary: Make a link that admits people to one room without an account. Session authentication only.
+      security: [{ session: [] }]
+      responses: { "201": { description: Link, including its URL } }
+  /join-links/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/Project" }]
+    delete:
+      tags: [join links]
+      summary: Turn a link off. People already in the room stay in it.
+      security: [{ session: [] }]
+      responses: { "204": { description: Turned off } }
+  /join/preview:
+    post:
+      tags: [join links]
+      summary: See what a link's code opens. Needs no authentication.
+      security: []
+      responses: { "200": { description: Room and what the link allows }, "404": { description: Unknown code }, "410": { description: Expired or turned off } }
+  /join:
+    post:
+      tags: [join links]
+      summary: Swap a link's code for an access token to its room, with an identity the server picks. Needs no authentication.
+      security: []
+      responses: { "201": { description: Token and the address to connect to }, "202": { description: "A place in the waiting room: a ticket, and no token" }, "404": { description: Unknown code }, "410": { description: "Expired, turned off, or the meeting has ended" }, "423": { description: The meeting is locked }, "429": { description: Too many requests } }
+  /join/wait:
+    post:
+      tags: [meetings]
+      summary: Swap a waiting room ticket for a token once someone has let you in, or give it up. Needs no authentication.
+      security: []
+      responses: { "200": { description: Still waiting }, "201": { description: Token and the address to connect to }, "204": { description: Gave up the place }, "403": { description: Turned away }, "404": { description: Unknown ticket }, "410": { description: The meeting has ended }, "423": { description: The meeting was locked } }
+  /meetings:
+    post:
+      tags: [meetings]
+      summary: "Start a meeting: a new room name, and a host link and guest link for it. Session authentication only, on a project you belong to. See docs/api/meetings.md."
+      security: [{ session: [] }]
+      parameters: [{ $ref: "#/components/parameters/Project" }]
+      responses: { "201": { description: "room, title, host_url, guest_url and expires_at" }, "401": { $ref: "#/components/responses/Error" }, "403": { $ref: "#/components/responses/Error" }, "409": { description: The project has no API key }, "429": { description: Too many requests } }
+  /meetings/{room}:
+    parameters: [{ name: room, in: path, required: true, schema: { type: string } }]
+    get:
+      tags: [meetings]
+      summary: The meeting as this person may see it. Authenticates with the token they joined with.
+      security: [{ token: [] }]
+      responses: { "200": { description: "Role, title and whether it is locked. For moderators and hosts, also who is waiting, the guest link and any recording." }, "403": { $ref: "#/components/responses/Error" } }
+    patch:
+      tags: [meetings]
+      summary: Change the title, lock it or turn the waiting room on. Hosts only.
+      security: [{ token: [] }]
+      responses: { "200": { description: The meeting }, "403": { $ref: "#/components/responses/Error" } }
+  /meetings/{room}/end:
+    parameters: [{ name: room, in: path, required: true, schema: { type: string } }]
+    post: { tags: [meetings], summary: "End it for everyone. Every token it handed out stops working, and the guest link until a host starts it again. Hosts only.", security: [{ token: [] }], responses: { "204": { description: Ended }, "403": { $ref: "#/components/responses/Error" } } }
+  /meetings/{room}/mute-all:
+    parameters: [{ name: room, in: path, required: true, schema: { type: string } }]
+    post: { tags: [meetings], summary: Mute every microphone but the caller's. Moderators and hosts., security: [{ token: [] }], responses: { "200": { description: How many were muted }, "403": { $ref: "#/components/responses/Error" } } }
+  /meetings/{room}/hand:
+    parameters: [{ name: room, in: path, required: true, schema: { type: string } }]
+    post: { tags: [meetings], summary: Raise or lower your own hand., security: [{ token: [] }], responses: { "200": { description: Changed }, "403": { $ref: "#/components/responses/Error" } } }
+  /meetings/{room}/summary:
+    parameters: [{ name: room, in: path, required: true, schema: { type: string } }]
+    get: { tags: [meetings], summary: "What happened: when it ran, who was there and what was recorded. Anyone who was in it, not anyone removed.", security: [{ token: [] }], responses: { "200": { description: The summary }, "403": { $ref: "#/components/responses/Error" }, "404": { description: Nothing has happened yet } } }
+  /meetings/{room}/waiting:
+    parameters: [{ name: room, in: path, required: true, schema: { type: string } }]
+    delete: { tags: [meetings], summary: Turn away everyone in the waiting room. They can knock again. Moderators and hosts., security: [{ token: [] }], responses: { "200": { description: How many were turned away }, "403": { $ref: "#/components/responses/Error" } } }
+  /meetings/{room}/waiting/{identity}:
+    parameters: [{ name: room, in: path, required: true, schema: { type: string } }, { name: identity, in: path, required: true, schema: { type: string } }]
+    post: { tags: [meetings], summary: Let someone in from the waiting room or turn them away. Moderators and hosts., security: [{ token: [] }], responses: { "204": { description: Answered }, "403": { $ref: "#/components/responses/Error" }, "404": { description: They are no longer waiting } } }
+  /meetings/{room}/participants/{identity}:
+    parameters: [{ name: room, in: path, required: true, schema: { type: string } }, { name: identity, in: path, required: true, schema: { type: string } }]
+    patch: { tags: [meetings], summary: Make someone a moderator or a guest again. Hosts only., security: [{ token: [] }], responses: { "200": { description: Changed }, "403": { $ref: "#/components/responses/Error" } } }
+  /meetings/{room}/participants/{identity}/mute:
+    parameters: [{ name: room, in: path, required: true, schema: { type: string } }, { name: identity, in: path, required: true, schema: { type: string } }]
+    post: { tags: [meetings], summary: Mute someone's microphone. The server stops forwarding it. Moderators and hosts., security: [{ token: [] }], responses: { "200": { description: Muted }, "403": { $ref: "#/components/responses/Error" } } }
+  /meetings/{room}/participants/{identity}/remove:
+    parameters: [{ name: room, in: path, required: true, schema: { type: string } }, { name: identity, in: path, required: true, schema: { type: string } }]
+    post: { tags: [meetings], summary: "Disconnect someone, and refuse their token from then on. Moderators can only remove guests.", security: [{ token: [] }], responses: { "204": { description: Removed }, "403": { $ref: "#/components/responses/Error" } } }
+  /meetings/{room}/participants/{identity}/lower-hand:
+    parameters: [{ name: room, in: path, required: true, schema: { type: string } }, { name: identity, in: path, required: true, schema: { type: string } }]
+    post: { tags: [meetings], summary: Lower someone's hand. Moderators and hosts., security: [{ token: [] }], responses: { "200": { description: Lowered }, "403": { $ref: "#/components/responses/Error" } } }
+  /rooms:
+    parameters: [{ $ref: "#/components/parameters/Project" }]
+    get: { tags: [rooms], summary: List open rooms., security: [{ session: [] }, { token: [] }], responses: { "200": { description: Rooms } } }
+    post: { tags: [rooms], summary: Create a room. Returns the existing room if it is already open., security: [{ session: [] }, { token: [] }], responses: { "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Room" } } } } } }
+  /rooms/history:
+    get: { tags: [rooms], summary: List past and present room sessions., security: [{ session: [] }, { token: [] }], responses: { "200": { description: History } } }
+  /rooms/{name}:
+    parameters: [{ name: name, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/Project" }]
+    get: { tags: [rooms], summary: Get an open room., security: [{ session: [] }, { token: [] }], responses: { "200": { description: Room } } }
+    patch: { tags: [rooms], summary: Change a room's metadata., security: [{ session: [] }, { token: [] }], responses: { "200": { description: Room } } }
+    delete: { tags: [rooms], summary: Close a room and disconnect everyone., security: [{ session: [] }, { token: [] }], responses: { "204": { description: Closed } } }
+  /participants:
+    get:
+      tags: [participants]
+      summary: List participants in one room, or with a session, in all rooms.
+      security: [{ session: [] }, { token: [] }]
+      parameters: [{ name: room, in: query, schema: { type: string } }, { $ref: "#/components/parameters/Project" }]
+      responses: { "200": { description: Participants } }
+  /participants/{room}/{identity}:
+    parameters:
+      - { name: room, in: path, required: true, schema: { type: string } }
+      - { name: identity, in: path, required: true, schema: { type: string } }
+      - { $ref: "#/components/parameters/Project" }
+    get: { tags: [participants], summary: Get a participant with live media stats., security: [{ session: [] }, { token: [] }], responses: { "200": { description: Participant } } }
+    patch: { tags: [participants], summary: Change metadata, name, attributes or permissions. A permission object replaces the whole set., security: [{ session: [] }, { token: [] }], responses: { "200": { description: Participant } } }
+    delete: { tags: [participants], summary: Remove a participant., security: [{ session: [] }, { token: [] }], responses: { "204": { description: Removed } } }
+  /tracks:
+    get:
+      tags: [tracks]
+      summary: List published tracks in a room.
+      security: [{ session: [] }, { token: [] }]
+      parameters: [{ name: room, in: query, required: true, schema: { type: string } }, { $ref: "#/components/parameters/Project" }]
+      responses: { "200": { description: Tracks } }
+  /tracks/{room}/{identity}/{sid}/mute:
+    post:
+      tags: [tracks]
+      summary: Mute a track. Unmuting needs room.enable_remote_unmute on the server.
+      security: [{ session: [] }, { token: [] }]
+      parameters:
+        - { name: room, in: path, required: true, schema: { type: string } }
+        - { name: identity, in: path, required: true, schema: { type: string } }
+        - { name: sid, in: path, required: true, schema: { type: string } }
+        - { $ref: "#/components/parameters/Project" }
+      responses: { "200": { description: Track }, "412": { $ref: "#/components/responses/Error" } }
+  /webhooks:
+    parameters: [{ $ref: "#/components/parameters/Project" }]
+    get: { tags: [webhooks], summary: List endpoints., security: [{ session: [] }], responses: { "200": { description: Endpoints } } }
+    post: { tags: [webhooks], summary: Create an endpoint., security: [{ session: [] }], responses: { "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Webhook" } } } } } }
+  /webhooks/events:
+    get: { tags: [webhooks], summary: List subscribable events., security: [{ session: [] }], responses: { "200": { description: Events } } }
+  /webhooks/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/Project" }]
+    get: { tags: [webhooks], summary: Get an endpoint., security: [{ session: [] }], responses: { "200": { description: Endpoint } } }
+    patch: { tags: [webhooks], summary: Change an endpoint., security: [{ session: [] }], responses: { "200": { description: Endpoint } } }
+    delete: { tags: [webhooks], summary: Delete an endpoint and its history., security: [{ session: [] }], responses: { "204": { description: Deleted } } }
+  /webhooks/{id}/deliveries:
+    get:
+      tags: [webhooks]
+      summary: List deliveries, newest first.
+      security: [{ session: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/Project" }]
+      responses: { "200": { description: Deliveries } }
+  /webhooks/{id}/test:
+    post:
+      tags: [webhooks]
+      summary: Queue a test delivery.
+      security: [{ session: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/Project" }]
+      responses: { "202": { description: Queued } }
+  /webhooks/deliveries/{id}/retry:
+    post:
+      tags: [webhooks]
+      summary: Send a finished delivery again.
+      security: [{ session: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/Project" }]
+      responses: { "202": { description: Queued } }
+  /analytics/overview:
+    get: { tags: [analytics], summary: Totals over a window (from and to in RFC 3339; default 30 days)., security: [{ session: [] }, { token: [] }], responses: { "200": { description: Totals } } }
+  /analytics/usage:
+    get:
+      tags: [analytics]
+      summary: Usage over time.
+      security: [{ session: [] }, { token: [] }]
+      parameters:
+        - { name: interval, in: query, schema: { type: string, enum: [minute, hour, day, month] } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+      responses: { "200": { description: Series } }
+  /monitor:
+    get: { tags: [analytics], summary: A live snapshot of this project on the node serving the request., security: [{ session: [] }], responses: { "200": { description: Snapshot } } }
+  /monitor/live:
+    get: { tags: [analytics], summary: The same snapshot once a second over a WebSocket., security: [{ session: [] }], responses: { "101": { description: Upgraded } } }
+  /servers:
+    get: { tags: [servers], summary: List media servers seen in the last minute., security: [{ session: [] }], responses: { "200": { description: Servers } } }
+  /servers/{id}/drain:
+    post:
+      tags: [servers]
+      summary: Stop or resume new sessions on a node. Platform administrators only.
+      security: [{ session: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: Updated }, "403": { $ref: "#/components/responses/Error" } }
+  /logs:
+    get:
+      tags: [logs]
+      summary: Search the project's event log.
+      security: [{ session: [] }]
+      parameters:
+        - { name: category, in: query, schema: { type: string, enum: [room, participant, track, signaling, webrtc, recording, api, application] } }
+        - { name: level, in: query, schema: { type: string, enum: [info, warn, error] } }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: room, in: query, schema: { type: string } }
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer } }
+        - { $ref: "#/components/parameters/Project" }
+      responses: { "200": { description: Events } }
+  /audit:
+    get:
+      tags: [logs]
+      summary: The project's audit log. Owners and admins only.
+      security: [{ session: [] }]
+      parameters: [{ $ref: "#/components/parameters/Project" }]
+      responses: { "200": { description: Entries } }
+  /egress:
+    get: { tags: [egress], summary: "Jobs, newest first. See docs/api/media-services.md for the body of everything here.", security: [{ session: [] }, { token: [] }], parameters: [{ $ref: "#/components/parameters/Project" }], responses: { "200": { description: "items and next_cursor" } } }
+    post:
+      tags: [egress]
+      summary: Start a recording or streaming job.
+      security: [{ session: [] }, { token: [] }]
+      parameters: [{ $ref: "#/components/parameters/Project" }]
+      responses: { "201": { description: The new job }, "404": { $ref: "#/components/responses/Error" }, "429": { $ref: "#/components/responses/Error" }, "503": { $ref: "#/components/responses/Error" } }
+  /egress/{id}:
+    get: { tags: [egress], summary: One job., security: [{ session: [] }, { token: [] }], parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/Project" }], responses: { "200": { description: The job } } }
+  /egress/{id}/stop:
+    post: { tags: [egress], summary: Stop a running job., security: [{ session: [] }, { token: [] }], parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/Project" }], responses: { "200": { description: The job }, "409": { $ref: "#/components/responses/Error" } } }
+  /recordings:
+    get: { tags: [egress], summary: Jobs with a file output., security: [{ session: [] }, { token: [] }], parameters: [{ $ref: "#/components/parameters/Project" }], responses: { "200": { description: "items and next_cursor" } } }
+  /recordings/{id}:
+    get: { tags: [egress], summary: One recording., security: [{ session: [] }, { token: [] }], parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/Project" }], responses: { "200": { description: The job } } }
+    delete: { tags: [egress], summary: Delete the file and the record., security: [{ session: [] }, { token: [] }], parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/Project" }], responses: { "204": { description: Deleted }, "409": { $ref: "#/components/responses/Error" } } }
+  /recordings/{id}/file:
+    get: { tags: [egress], summary: "The file. Supports Range, so it plays and seeks in a video element.", security: [{ session: [] }, { token: [] }], parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { name: project_id, in: query, schema: { type: string } }, { name: download, in: query, schema: { type: string } }], responses: { "200": { description: The file }, "206": { description: Part of it }, "404": { $ref: "#/components/responses/Error" } } }
+  /recordings/{id}/retry:
+    post: { tags: [egress], summary: Start a new job with the same request., security: [{ session: [] }, { token: [] }], parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/Project" }], responses: { "201": { description: The new job }, "409": { $ref: "#/components/responses/Error" }, "503": { $ref: "#/components/responses/Error" } } }
+  /ingress:
+    get: { tags: [ingress], summary: Ingresses., security: [{ session: [] }, { token: [] }], parameters: [{ $ref: "#/components/parameters/Project" }], responses: { "200": { description: items } } }
+    post: { tags: [ingress], summary: "Create one. The response carries the stream key, which is never shown again.", security: [{ session: [] }, { token: [] }], parameters: [{ $ref: "#/components/parameters/Project" }], responses: { "201": { description: The ingress } } }
+  /ingress/{id}:
+    get: { tags: [ingress], summary: One ingress., security: [{ session: [] }, { token: [] }], parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/Project" }], responses: { "200": { description: The ingress } } }
+    patch: { tags: [ingress], summary: "Change name, room, identity or enabled.", security: [{ session: [] }, { token: [] }], parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/Project" }], responses: { "200": { description: The ingress } } }
+    delete: { tags: [ingress], summary: "Delete, and stop any running stream.", security: [{ session: [] }, { token: [] }], parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/Project" }], responses: { "204": { description: Deleted } } }
+  /ingress/{id}/stop:
+    post: { tags: [ingress], summary: Stop the running stream. It can be used again., security: [{ session: [] }, { token: [] }], parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/Project" }], responses: { "200": { description: The ingress } } }
+  /ingress/{id}/rotate-key:
+    post: { tags: [ingress], summary: "New stream key, returned once. The old one stops working, and its stream ends.", security: [{ session: [] }, { token: [] }], parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/Project" }], responses: { "200": { description: The ingress }, "409": { $ref: "#/components/responses/Error" } } }
+  /ingress/{id}/logs:
+    get: { tags: [ingress], summary: "This ingress's events, newest first.", security: [{ session: [] }, { token: [] }], parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/Project" }], responses: { "200": { description: items } } }

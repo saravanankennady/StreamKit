@@ -1,0 +1,10 @@
+bin/
+node_modules/
+dist/
+.next/
+*.log
+.env
+.env.local
+coverage/
+tests/interoperability/oracle/out/
+tests/interoperability/oracle/dist/

@@ -1,0 +1,34 @@
+groups:
+  - name: elnova-streamkit
+    rules:
+      - alert: ServerDown
+        expr: up{job="streamkit-server"} == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: "{{ $labels.instance }} is not answering."
+      - alert: HighSubscriberLoss
+        expr: histogram_quantile(0.9, sum by (le) (rate(streamkit_subscriber_loss_ratio_bucket[5m]))) > 0.05
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Ten percent of receiver reports show over 5% packet loss."
+      - alert: HighSubscriberRTT
+        expr: histogram_quantile(0.9, sum by (le) (rate(streamkit_subscriber_rtt_seconds_bucket[5m]))) > 0.3
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Ten percent of subscribers see over 300 ms round-trip time."
+      - alert: JoinFailures
+        expr: sum(rate(streamkit_signal_connects_total{outcome!="connected"}[5m])) > 0.2
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Clients are failing to connect."
+      - alert: HighCPU
+        # Cores in use. Set this to about 80% of what your media servers have.
+        expr: rate(process_cpu_seconds_total{job="streamkit-server"}[5m]) > 12
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.instance }} is using a lot of CPU. Consider adding a node."

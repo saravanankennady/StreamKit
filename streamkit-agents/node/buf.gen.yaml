@@ -1,0 +1,18 @@
+# TypeScript bindings for the Node.js agents framework. Run from proto/: buf generate --template ../streamkit-agents/node/buf.gen.yaml
+#
+# js+dts rather than ts, because Node runs this package's TypeScript by stripping types, and generated enums cannot be stripped.
+version: v2
+inputs:
+  - directory: .
+    paths:
+      - vendor/livekit/livekit_rtc.proto
+      - vendor/livekit/livekit_models.proto
+      - vendor/livekit/livekit_metrics.proto
+      - vendor/livekit/livekit_agent.proto
+      - vendor/livekit/logger/options.proto
+plugins:
+  - local: ../streamkit-agents/node/node_modules/.bin/protoc-gen-es
+    out: ../streamkit-agents/node/src/proto
+    opt:
+      - target=js+dts
+      - import_extension=js

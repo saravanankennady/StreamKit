@@ -1,0 +1,13 @@
+{
+  "name": "streamkit-egress-template",
+  "private": true,
+  "type": "module",
+  "description": "The recorder page streamkit-egress opens in headless Chrome. Built with our own SDK. The bundle in assets/ is committed, so building the Go worker needs no Node.",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test --experimental-strip-types src/layout.test.ts"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

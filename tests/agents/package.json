@@ -1,0 +1,15 @@
+{
+  "name": "elnova-streamkit-agents-browser-tests",
+  "private": true,
+  "type": "module",
+  "description": "A real browser talks to a real agent: the official livekit-client as a black-box client, against any server.",
+  "scripts": {
+    "bundle": "esbuild page/client.ts --bundle --format=esm --outfile=page/dist/client.js --log-level=warning",
+    "test": "npm run bundle && node --test --test-concurrency=1 --test-reporter=spec browser.test.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "livekit-client": "2.23.0",
+    "playwright-core": "^1.50.0"
+  }
+}

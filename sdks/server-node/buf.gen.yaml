@@ -1,0 +1,20 @@
+# TypeScript wire types for this SDK. Run with: npm run proto
+version: v2
+inputs:
+  - directory: .
+    paths:
+      - vendor/livekit/livekit_room.proto
+      - vendor/livekit/livekit_models.proto
+      - vendor/livekit/livekit_egress.proto
+      - vendor/livekit/livekit_ingress.proto
+      - vendor/livekit/livekit_webhook.proto
+      - vendor/livekit/livekit_agent.proto
+      - vendor/livekit/livekit_agent_dispatch.proto
+      - vendor/livekit/livekit_metrics.proto
+      - vendor/livekit/logger/options.proto
+plugins:
+  - local: ../sdks/server-node/node_modules/.bin/protoc-gen-es
+    out: ../sdks/server-node/src/proto
+    opt:
+      - target=ts
+      - import_extension=js
